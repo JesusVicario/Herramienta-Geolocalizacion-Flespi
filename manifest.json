@@ -1,0 +1,24 @@
+{
+    "name": "Geo Coche - Estado y rutas del vehículo",
+    "short_name": "Geo Coche",
+    "description": "Consulta el estado en tiempo real y el historial de trayectos de tu vehículo.",
+    "start_url": "/index.php",
+    "display": "standalone",
+    "theme_color": "#ff6600",
+    "background_color": "#ffffff",
+    "orientation": "portrait",
+    "lang": "es",
+    "icons": [
+      {
+        "src": "/icons/icon-192.png",
+        "sizes": "192x192",
+        "type": "image/png"
+      },
+      {
+        "src": "/icons/icon-512.png",
+        "sizes": "512x512",
+        "type": "image/png"
+      }
+    ]
+  }
+  
