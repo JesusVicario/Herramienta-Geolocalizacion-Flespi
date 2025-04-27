@@ -22,8 +22,8 @@ function haversine($lat1, $lon1, $lat2, $lon2) {
 }
 
 // === DATOS FLESPI ===
-$token = ''; // aquí deberá introducir el token de flespi
-$id_flespi = ''; //aquí se deberá introducir el id del dispositivo de flespi
+$token = '';
+$id_flespi = '';
 $url = "https://flespi.io/gw/devices/$id_flespi/telemetry/all";
 
 // === CONSULTA A FLESPI ===
@@ -111,7 +111,7 @@ $distancia = haversine($ultimo_punto['lat'], $ultimo_punto['lon'], $lat, $lon);
 $se_ha_movido = ($distancia > 30 && $velocidad > 4.17);
 $tiempo_total_trayecto = $timestamp - $ultimo_trayecto['inicio'];
 
-// === NUEVA LÓGICA: CIERRE SI LLEVA 20 MINUTOS SIN MOVERSE ===
+// === NUEVA LÓGICA: CIERRE SI LLEVA 10 MINUTOS SIN MOVERSE ===
 $ultimo_movimiento = $ultimo_punto['timestamp'];
 foreach (array_reverse($puntos) as $p) {
     $dist = haversine($p['lat'], $p['lon'], $lat, $lon);
@@ -132,6 +132,14 @@ if (is_null($ultimo_trayecto['fin']) && $ignition_bool && $tiempo_sin_moverse >=
 // === CREACIÓN DE NUEVO TRAYECTO SI EL ANTERIOR ESTÁ CERRADO ===
 if (!is_null($ultimo_trayecto['fin'])) {
     if ($ignition_bool && $se_ha_movido) {
+        // Limitar a 20 trayectos
+        if (count($trayectos) >= 20) {
+            array_shift($trayectos); // Eliminar el más antiguo
+            foreach ($trayectos as $k => &$trayecto) {
+                $trayecto['id'] = $k;
+            }
+        }
+
         $trayectos[] = [
             'id' => count($trayectos),
             'inicio' => $timestamp,
@@ -150,6 +158,14 @@ if (!is_null($ultimo_trayecto['fin'])) {
 // === REGISTRO DE NUEVOS PUNTOS ===
 if ($ignition_bool) {
     if ($ultimo_punto['ignition'] === false && $se_ha_movido) {
+        // Limitar a 10 trayectos
+        if (count($trayectos) >= 10) {
+            array_shift($trayectos); // Eliminar el más antiguo
+            foreach ($trayectos as $k => &$trayecto) {
+                $trayecto['id'] = $k;
+            }
+        }
+
         $trayectos[] = [
             'id' => count($trayectos),
             'inicio' => $timestamp,

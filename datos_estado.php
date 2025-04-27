@@ -2,15 +2,15 @@
 header('Content-Type: application/json');
 
 // === DATOS FLESPI ===
-$token = ''; // aquí deberá introducir el token de flespi
-$id_flespi = ''; //aquí se deberá introducir el id del dispositivo de flespi
-$url = "https://flespi.io/gw/devices/$id_flespi/telemetry/all";
+$token     = ''; // aquí tu token de Flespi
+$id_flespi = ''; // aquí el ID del dispositivo en Flespi
+$url       = "https://flespi.io/gw/devices/$id_flespi/telemetry/all";
 
 // === CONSULTA ===
 $curl = curl_init($url);
 curl_setopt_array($curl, [
     CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_HTTPHEADER => ["Authorization: FlespiToken $token"]
+    CURLOPT_HTTPHEADER    => ["Authorization: FlespiToken $token"],
 ]);
 $response = curl_exec($curl);
 $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
@@ -21,55 +21,76 @@ if ($httpCode !== 200 || !$response) {
     exit;
 }
 
-$data = json_decode($response, true);
-$t = $data['result'][0]['telemetry'] ?? [];
-$info = $data['result'][0]['device'] ?? [];
+// === DECODIFICAR RESPUESTA ===
+$data   = json_decode($response, true);
+$result = $data['result'][0] ?? [];
+$t      = $result['telemetry'] ?? [];
+$info   = $result['device']    ?? [];
 
-// === Coordenadas ===
-$lat_raw = $t['position.latitude']['value'] ?? null;
-$lon_raw = $t['position.longitude']['value'] ?? null;
-$lat = is_numeric($lat_raw) ? floatval($lat_raw) : null;
-$lon = is_numeric($lon_raw) ? floatval($lon_raw) : null;
+// === COORDENADAS ===
+$lat = is_numeric($t['position.latitude']['value'] ?? null)
+       ? floatval($t['position.latitude']['value'])
+       : null;
+$lon = is_numeric($t['position.longitude']['value'] ?? null)
+       ? floatval($t['position.longitude']['value'])
+       : null;
 
-// === GEOLOCALIZACIÓN INVERSA ===
+// === GEOLOCALIZACIÓN INVERSA con User-Agent ===
 $direccion = 'No disponible';
 if ($lat !== null && $lon !== null) {
-    $geo = @file_get_contents("https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lon");
+    $opts = ['http' => [
+        'header' => "User-Agent: MiApp/1.0\r\n"
+    ]];
+    $ctx = stream_context_create($opts);
+    $geo = @file_get_contents(
+        "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lon",
+        false,
+        $ctx
+    );
     if ($geo) {
-        $geojson = json_decode($geo, true);
-        $direccion = $geojson['display_name'] ?? 'No disponible';
+        $g = json_decode($geo, true);
+        $direccion = $g['display_name'] ?? 'No disponible';
     }
 }
 
-// === TIEMPO ENCENDIDO ===
-$tiempo_encendido = "No disponible";
-if (!empty($t['engine.ignition.status']['value']) && isset($t['engine.ignition.status']['timestamp'])) {
-    $inicio_ts = $t['engine.ignition.status']['timestamp'];
-    $tiempo = time() - $inicio_ts;
-    $tiempo_encendido = gmdate("H:i:s", $tiempo);
+// === TIEMPO ENCENDIDO (usa 'ts' en lugar de 'timestamp') ===
+$tiempo_encendido = 'No disponible';
+if (isset($t['engine.ignition.status']['ts'])) {
+    $inicio_ts = $t['engine.ignition.status']['ts'];
+    $dur       = time() - $inicio_ts;
+    $tiempo_encendido = gmdate("H:i:s", $dur);
 }
 
-// === RESPUESTA FINAL ===
+// === HORA GPS (fallback de 'position.latitude.ts') ===
+if (isset($t['position.timestamp']['value'])) {
+    // algunos dispositivos pueden exponer position.timestamp.value
+    $gps_time = date("Y-m-d H:i:s", $t['position.timestamp']['value']);
+} elseif (isset($t['position.latitude']['ts'])) {
+    $gps_time = date("Y-m-d H:i:s", $t['position.latitude']['ts']);
+} else {
+    $gps_time = 'No disponible';
+}
+
+// === SALIDA JSON ===
 echo json_encode([
-    'error' => false,
-    'ignition' => $t['engine.ignition.status']['value'] ? 'Encendido' : 'Apagado',
-    'movimiento' => $t['movement.status']['value'] ? 'Sí' : 'No',
-    'velocidad' => isset($t['position.speed']['value']) ? $t['position.speed']['value'] . ' km/h' : 'No disponible',
-    'direccion_vehiculo' => isset($t['position.direction']['value']) ? $t['position.direction']['value'] . '°' : 'No disponible',
-    'rotacion' => $t['position.direction']['value'] ?? 0,
-    'altitud' => isset($t['position.altitude']['value']) ? $t['position.altitude']['value'] . ' m' : 'No disponible',
-    'gps_valid' => isset($t['position.valid']['value']) && $t['position.valid']['value'] ? 'Sí' : 'No',
-    'gps_status' => isset($t['position.valid']['value']) && $t['position.valid']['value'] ? 'Correcta' : 'Sin señal',
-    'sat_count' => $t['gnss.satellites.count']['value'] ?? 'No disponible',
-    'gps_time' => isset($t['position.latitude']['timestamp']) ? date("Y-m-d H:i:s", $t['position.latitude']['timestamp']) : 'No disponible',
-    'km' => isset($t['vehicle.mileage']['value']) ? round($t['vehicle.mileage']['value'], 2) . ' km' : 'No disponible',
-    'voltaje' => isset($t['external.powersource.voltage']['value']) ? $t['external.powersource.voltage']['value'] . ' V' : 'No disponible',
-    'bateria' => isset($t['battery.voltage']['value']) ? $t['battery.voltage']['value'] . ' V' : 'No disponible',
-    'bateria_porcentaje' => isset($t['battery.level']['value']) ? $t['battery.level']['value'] . '%' : 'No disponible',
-    'gsm' => $t['gsm.signal.level']['value'] ?? 'No disponible',
-    'lat' => $lat,
-    'lon' => $lon,
-    'direccion' => $direccion,
-    'nombre' => $info['name'] ?? 'Vehículo',
-    'tiempo_encendido' => $tiempo_encendido
+    'error'              => false,
+    'ignition'           => !empty($t['engine.ignition.status']['value']) ? 'Encendido' : 'Apagado',
+    'movimiento'         => !empty($t['movement.status']['value'])         ? 'Sí'        : 'No',
+    'velocidad'          => isset($t['position.speed']['value'])           ? $t['position.speed']['value'].' km/h' : 'No disponible',
+    'direccion_vehiculo' => isset($t['position.direction']['value'])       ? $t['position.direction']['value'].'°'  : 'No disponible',
+    'altitud'            => isset($t['position.altitude']['value'])        ? $t['position.altitude']['value'].' m' : 'No disponible',
+    'gps_valid'          => !empty($t['position.valid']['value'])          ? 'Sí'        : 'No',
+    'gps_status'         => !empty($t['position.valid']['value'])          ? 'Correcta'  : 'Sin señal',
+    'sat_count'          => isset($t['position.satellites']['value'])      ? $t['position.satellites']['value']    : 'No disponible',
+    'gps_time'           => $gps_time,
+    'km'                 => isset($t['vehicle.mileage']['value'])          ? round($t['vehicle.mileage']['value'],2).' km' : 'No disponible',
+    'voltaje'            => isset($t['external.powersource.voltage']['value']) ? $t['external.powersource.voltage']['value'].' V' : 'No disponible',
+    'bateria'            => isset($t['battery.voltage']['value'])          ? $t['battery.voltage']['value'].' V'   : 'No disponible',
+    'bateria_porcentaje' => isset($t['battery.level']['value'])            ? $t['battery.level']['value'].'%'       : 'No disponible',
+    'gsm'                => $t['gsm.signal.level']['value'] ?? 'No disponible',
+    'lat'                => $lat,
+    'lon'                => $lon,
+    'direccion'          => $direccion,
+    'nombre'             => $info['name'] ?? 'Vehículo',
+    'tiempo_encendido'   => $tiempo_encendido,
 ]);
