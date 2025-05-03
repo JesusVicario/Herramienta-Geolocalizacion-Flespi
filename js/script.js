@@ -13,11 +13,6 @@ let marcador = L.marker([36.7, -4.4], { icon: iconoCoche }).addTo(mapa);
 let ignition_anterior = null;
 let conectado = false; // Estado de conexión persistente
 
-function actualizarHora() {
-    const ahora = new Date();
-    document.getElementById('horaActual').textContent = ahora.toLocaleString();
-}
-
 function coordenadasValidas(lat, lon) {
     const latNum = parseFloat(lat);
     const lonNum = parseFloat(lon);
@@ -58,7 +53,7 @@ function actualizarEstado() {
             document.getElementById('coordenadas').textContent = data.lat + ", " + data.lon;
             document.getElementById('direccion').textContent = data.direccion;
             document.getElementById('altitud').textContent = data.altitud;
-            document.getElementById('gps_time').textContent = data.gps_time;
+            document.getElementById('horaActual').textContent = data.gps_time;
 
             document.getElementById('gps_status').textContent = data.gps_status;
             document.getElementById('sat_count').textContent = data.sat_count;
@@ -80,7 +75,6 @@ function actualizarEstado() {
             }
 
             ignition_anterior = data.ignition === "Encendido";
-            actualizarHora();
         })
         .catch(err => {
             // Si falla el fetch y nunca se conectó, mostrar error

@@ -52,7 +52,7 @@ if (!isset($_COOKIE['acceso_autorizado'])) {
 
     <div class="card">
         <h2>Estado actual del vehículo</h2>
-        <p class="timestamp">Fecha y hora actual: <span id="horaActual"></span></p>
+        <p class="timestamp">Datos del: <span id="horaActual"></span></p>
         <p id="conexionEstado" class="conexion estado-conectando">Conectando al vehículo...</p>
         <button id="actualizarBtn" class="btn">Actualizar ahora</button>
         <table id="estado">
@@ -111,10 +111,6 @@ if (!isset($_COOKIE['acceso_autorizado'])) {
             <tr>
                 <th>Altitud</th>
                 <td id="altitud">Cargando...</td>
-            </tr>
-            <tr>
-                <th>Hora del GPS</th>
-                <td id="gps_time">Cargando...</td>
             </tr>
         </table>
     </div>
