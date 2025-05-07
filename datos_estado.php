@@ -58,21 +58,31 @@ if ($lat !== null && $lon !== null) {
 // Inicializamos con cero
 $tiempo_encendido = '00:00:00';
 
-// Comprobamos que venga el estado y el timestamp
+// === TIEMPO ENCENDIDO según historial.json ===
+// Solo si el motor está encendido
 if (
     isset($t['engine.ignition.status']['value']) &&
-    isset($t['engine.ignition.status']['ts'])
+    (int) $t['engine.ignition.status']['value'] === 1
 ) {
-    // Valor 1 = encendido, 0 = apagado (ajusta según tu fuente)
-    $encendido = (int) $t['engine.ignition.status']['value'];
-    $ts_ign = (int) $t['engine.ignition.status']['ts'];
-
-    if ($encendido === 1) {
-        // motor ON: calculamos tiempo en marcha
-        $delta = time() - $ts_ign;           // segundos desde que se encendió
-        $tiempo_encendido = gmdate("H:i:s", $delta);
+    // Cargamos el historial de trayectos
+    $histFile = __DIR__ . '/historial.json';
+    if (file_exists($histFile) && is_readable($histFile)) {
+        $historial = json_decode(file_get_contents($histFile), true);
+        if (is_array($historial) && count($historial) > 0) {
+            // Tomamos el último elemento del array
+            $ultimo = end($historial);
+            $inicio = isset($ultimo['inicio']) ? (int) $ultimo['inicio'] : null;
+            if ($inicio) {
+                // diferencia en segundos entre ahora y el inicio del trayecto
+                $delta = time() - $inicio;
+                // formateamos HH:MM:SS
+                $tiempo_encendido = gmdate("H:i:s", max(0, $delta));
+            }
+        }
     }
-    // si $encendido === 0, dejamos "00:00:00"
+} else {
+    // si está apagado o no hay dato, lo dejamos a cero
+    $tiempo_encendido = '00:00:00';
 }
 
 // === HORA GPS (fallback de 'position.latitude.ts') ===
